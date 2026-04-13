@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QPushButton, QLabel, QComboBox, QTextEdit, QProgressBar,
     QCheckBox, QFrame, QSystemTrayIcon, QMenu, QApplication,
-    QSizePolicy,
+    QSizePolicy, QLineEdit
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QSize
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QAction, QFont
