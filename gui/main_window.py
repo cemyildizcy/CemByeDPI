@@ -106,7 +106,7 @@ class MainWindow(QMainWindow):
     # ======================================================================
     def _setup_ui(self):
         self.setWindowTitle("CemByeDPI — Discord Erişim Aracı")
-        self.setFixedSize(440, 780)
+        self.setFixedSize(440, 920)
         self.setWindowIcon(_make_icon(ACCENT))
 
         central = QWidget()
@@ -143,9 +143,11 @@ class MainWindow(QMainWindow):
 
         # -- Durum --
         self.lbl_status = QLabel("● Bağlı Değil")
-        self.lbl_status.setObjectName("statusLabel")
         self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_status.setStyleSheet(f"color: {TEXT_DIM}; background: #1a1b30; border-radius: 8px;")
+        self.lbl_status.setFixedHeight(32)
+        self.lbl_status.setStyleSheet(
+            f"color: {TEXT_DIM}; background: #1a1b30; border-radius: 8px; font-weight: 600;"
+        )
         root.addWidget(self.lbl_status)
 
         # -- DNS Seçimi --
@@ -161,6 +163,32 @@ class MainWindow(QMainWindow):
             self.cmb_dns.addItem(f"{name}  ({primary})", name)
         dns_lay.addWidget(self.cmb_dns)
         root.addWidget(dns_card)
+        
+        # -- Platformlar --
+        from core.domains import DOMAINS
+        plat_card = self._card()
+        plat_lay = QVBoxLayout(plat_card)
+        plat_lay.setSpacing(6)
+        plat_title = QLabel("🎯 Hedef Platformlar")
+        plat_title.setObjectName("sectionTitle")
+        plat_lay.addWidget(plat_title)
+        
+        # Checkboxes
+        self.plat_boxes = {}
+        for p_name in DOMAINS.keys():
+            cb = QCheckBox(p_name)
+            if p_name == "Discord":
+                cb.setChecked(True)
+            self.plat_boxes[p_name] = cb
+            plat_lay.addWidget(cb)
+            
+        self.txt_custom = QLineEdit()
+        self.txt_custom.setPlaceholderText("Özel Domain (Örn: pastebin.com)")
+        self.txt_custom.setStyleSheet(
+            "background: #202225; color: #dcddde; border: 1px solid #4f545c; padding: 4px; border-radius: 4px;"
+        )
+        plat_lay.addWidget(self.txt_custom)
+        root.addWidget(plat_card)
 
         # -- Hız Testi --
         speed_card = self._card()
@@ -401,8 +429,16 @@ class MainWindow(QMainWindow):
             self.cmb_dns.setEnabled(False)
 
             dns_name = self.cmb_dns.currentData()
+            
+            from core.domains import get_combined_domains
+            sel_plats = [k for k, v in self.plat_boxes.items() if v.isChecked()]
+            c_txt = self.txt_custom.text().strip()
+            c_doms = c_txt.split(",") if c_txt else []
+            targets = get_combined_domains(sel_plats, c_doms)
+
             self.engine.start_async(
-                dns_name,
+                dns_name=dns_name,
+                target_domains=targets,
                 done_cb=self._bridge.engine_done.emit,
             )
 

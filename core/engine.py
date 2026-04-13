@@ -26,43 +26,54 @@ class Engine:
         self.dns = DNSManager()
         self.fragmenter = SNIFragmenter()
         self.active = False
-        self.start_time: float | None = None
-        self._callbacks: list = []
+        self.start_time = None
+        self._on_log_cb = None
+        
+        # RPC Init
+        try:
+            from core.rpc import DiscordRPC
+            self.rpc = DiscordRPC(client_id="1493344862005624893")
+        except ImportError:
+            self.rpc = None
 
     def on_log(self, cb):
-        self._callbacks.append(cb)
+        self._on_log_cb = cb
+        self.dns.on_log(cb)
         self.fragmenter.on_log(cb)
 
-    def _emit(self, msg):
-        logger.info(msg)
-        for cb in self._callbacks:
-            try:
-                cb(msg)
-            except Exception:
-                pass
+    def _emit(self, msg: str):
+        if self._on_log_cb:
+            self._on_log_cb(msg)
+        else:
+            logger.info(msg)
 
-    def start_async(self, dns_name: str = DEFAULT_DNS, done_cb=None):
-        """Bypass'ı arka planda başlat (GUI donmaz)."""
-        if self.active:
-            if done_cb:
-                done_cb(True)
-            return
-
-        def _worker():
-            result = self._do_start(dns_name)
-            if done_cb:
-                done_cb(result)
-
-        t = threading.Thread(target=_worker, daemon=True, name="engine-start")
+    def start_async(self, dns_name: str, target_domains: list[str] = None, done_cb=None):
+        """Arayüzü kitlemeden bypass'ı arka planda başlat."""
+        t = threading.Thread(target=self._start_thread, args=(dns_name, target_domains, done_cb), daemon=True)
         t.start()
 
-    def _do_start(self, dns_name: str = DEFAULT_DNS) -> bool:
+    def _start_thread(self, dns_name: str, target_domains: list[str], done_cb):
+        if self.rpc:
+            self.rpc.connect()
+            self.rpc.update_status(details="Bypass Başlatılıyor...", state="Hazırlanıyor")
+            
+        ok = self.start(dns_name, target_domains)
+        
+        if ok and self.rpc:
+            self.rpc.update_status(details="Engeller Aşılıyor 🚀", state="Bağlı ve Güvende", start_time=True)
+        elif not ok and self.rpc:
+            self.rpc.update_status(details="Bypass Başarısız ❌", state="Hata")
+            
+        if done_cb:
+            done_cb(ok)
+
+    def start(self, dns_name: str = DEFAULT_DNS, target_domains: list[str] = None) -> bool:
         """Bypass başlatma (ağır işler burada — arka plan thread'i)."""
         self._emit("🚀 CemByeDPI başlatılıyor...")
 
         # 1. DNS (DoH + hosts dosyası + sistem DNS)
         self._emit(f"🌐 DNS ayarlanıyor → {dns_name} (DoH + hosts)")
-        if not self.dns.set_dns(dns_name):
+        if not self.dns.set_dns(dns_name, target_domains):
             self._emit("⚠️ DNS ayarlanamadı, yine de devam ediliyor...")
 
         # 2. SNI Fragmenter
@@ -73,7 +84,7 @@ class Engine:
 
         self.active = True
         self.start_time = time.time()
-        self._emit("✅ CemByeDPI aktif — Discord erişimi sağlanıyor")
+        self._emit("✅ CemByeDPI aktif — Erişim sağlandı")
         return True
 
     def stop(self):
@@ -86,6 +97,10 @@ class Engine:
         self.dns.restore_dns()
         self.active = False
         self.start_time = None
+        
+        if self.rpc:
+            self.rpc.disconnect()
+            
         self._emit("⬛ CemByeDPI durduruldu")
 
     def get_uptime(self) -> str:
@@ -115,13 +130,21 @@ class Engine:
                 winreg.HKEY_CURRENT_USER, REG_PATH, 0, winreg.KEY_SET_VALUE
             )
             if enable:
-                exe = sys.executable
-                script = os.path.abspath(
-                    os.path.join(os.path.dirname(__file__), "..", "main.py")
-                )
+                if getattr(sys, 'frozen', False):
+                    # PyInstaller ile derlenmiş exe
+                    exe_path = sys.executable
+                    cmd = f'"{exe_path}" --minimized'
+                else:
+                    # Geliştirme ortamı (python main.py)
+                    exe_path = sys.executable
+                    script = os.path.abspath(
+                        os.path.join(os.path.dirname(__file__), "..", "main.py")
+                    )
+                    cmd = f'"{exe_path}" "{script}" --minimized'
+                    
                 winreg.SetValueEx(
                     key, APP_NAME, 0, winreg.REG_SZ,
-                    f'"{exe}" "{script}" --minimized',
+                    cmd,
                 )
                 logger.info("Autostart etkinleştirildi")
             else:

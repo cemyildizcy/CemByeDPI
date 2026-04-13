@@ -230,7 +230,7 @@ class DNSManager:
         except Exception as e:
             logger.error(f"DNS yedekleme hatası: {e}")
 
-    def set_dns(self, dns_name: str = DEFAULT_DNS) -> bool:
+    def set_dns(self, dns_name: str = DEFAULT_DNS, target_domains: list[str] = None) -> bool:
         if not self.active_adapter:
             self.get_active_adapter()
         if not self.active_adapter:
@@ -252,16 +252,21 @@ class DNSManager:
             logger.warning(f"Sistem DNS değiştirilemedi: {e}")
 
         # 2. DoH ile PARALEL çözümleme → hosts dosyası (çok hızlı)
-        logger.info("🔐 DoH ile Discord domainleri çözümleniyor...")
-        entries = resolve_all_parallel(DISCORD_CRITICAL_DOMAINS)
-        if entries:
-            if add_hosts_entries(entries):
-                self.hosts_modified = True
-                logger.info(f"✅ {len(entries)}/{len(DISCORD_CRITICAL_DOMAINS)} domain çözümlendi")
+        domain_list = target_domains if target_domains else []
+        logger.info(f"🔐 DoH ile {len(domain_list)} adet hedef domain çözümleniyor...")
+        
+        if domain_list:
+            entries = resolve_all_parallel(domain_list)
+            if entries:
+                if add_hosts_entries(entries):
+                    self.hosts_modified = True
+                    logger.info(f"✅ {len(entries)}/{len(domain_list)} domain çözümlendi")
+                else:
+                    logger.error("Hosts dosyasına yazılamadı!")
             else:
-                logger.error("Hosts dosyasına yazılamadı!")
+                logger.error("Hiçbir domain DoH ile çözümlenemedi!")
         else:
-            logger.error("Hiçbir domain DoH ile çözümlenemedi!")
+            logger.info("Hedef domain seçilmedi, sadece SNI motoru çalışacak.")
 
         # 3. DNS cache temizle (gizli)
         try:

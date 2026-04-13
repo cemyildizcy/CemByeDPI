@@ -16,6 +16,7 @@ pyinstaller ^
     --collect-all pydivert ^
     --hidden-import pydivert ^
     --hidden-import pydivert.windivert ^
+    --hidden-import pypresence ^
     --add-data "core;core" ^
     --add-data "gui;gui" ^
     --add-data "utils;utils" ^
