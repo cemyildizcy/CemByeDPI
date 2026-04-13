@@ -63,7 +63,7 @@ Tarayıcı → [2 byte TLS] → [Sahte RST, TTL=1] → [50ms gecikme] → [Kalan
 ### Kaynak Koddan Çalıştırma
 ```bash
 # Depoyu klonlayın
-git clone https://github.com/cagritaskn/CemByeDPI.git
+git clone https://github.com/cemyildizcy/CemByeDPI.git
 cd CemByeDPI
 
 # Bağımlılıkları kurun
