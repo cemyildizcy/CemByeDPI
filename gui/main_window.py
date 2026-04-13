@@ -416,6 +416,11 @@ class MainWindow(QMainWindow):
             self._quit()
 
     def _quit(self):
+        import time
         self.engine.stop()
         self.tray.hide()
+        # Sistemin WinDivert.sys kernel sürücüsünü tamamen hafızadan atması
+        # ve dosya kilidini açması için kısa bir süre bekle. PyInstaller
+        # temp klasörünü silerken dosya hala kilitliyse hata veriyor.
+        time.sleep(1)
         QApplication.instance().quit()
