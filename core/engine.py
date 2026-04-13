@@ -38,7 +38,6 @@ class Engine:
 
     def on_log(self, cb):
         self._on_log_cb = cb
-        self.dns.on_log(cb)
         self.fragmenter.on_log(cb)
 
     def _emit(self, msg: str):
