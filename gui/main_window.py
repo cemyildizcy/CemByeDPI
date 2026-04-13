@@ -377,6 +377,7 @@ class MainWindow(QMainWindow):
         msg.setText(f"CemByeDPI'ın yeni sürümü ({new_ver}) bulundu.\n\nŞimdi otomatik olarak indirilip kurulsun mu?")
         msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         msg.setDefaultButton(QMessageBox.StandardButton.Yes)
+        msg.setStyleSheet("QLabel{color:white;} QMessageBox{background:#2b2d31;} QPushButton{background:#5865F2;color:white;border-radius:4px;padding:6px;min-width:60px;}")
         
         if msg.exec() == QMessageBox.StandardButton.Yes:
             self._start_update_download(dl_url, new_ver)
@@ -388,6 +389,7 @@ class MainWindow(QMainWindow):
         
         self.update_dlg = QProgressDialog(f"{new_ver} İndiriliyor...", "İptal (Kapat)", 0, 100, self)
         self.update_dlg.setWindowTitle("Güncelleme")
+        self.update_dlg.setStyleSheet("QLabel{color:white;} QProgressDialog{background:#2b2d31;} QProgressBar{border:1px solid #4f545c;border-radius:4px;text-align:center;color:white;} QProgressBar::chunk{background:#5865F2;}")
         self.update_dlg.setWindowModality(Qt.WindowModality.WindowModal)
         self.update_dlg.setCancelButton(None) # iptal edilemez
         self.update_dlg.show()

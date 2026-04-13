@@ -24,7 +24,6 @@ except ImportError:
     PYDIVERT_AVAILABLE = False
     logger.warning("pydivert yüklenemedi! pip install pydivert")
 
-from core.domains import is_discord_domain
 
 
 # ---------------------------------------------------------------------------
