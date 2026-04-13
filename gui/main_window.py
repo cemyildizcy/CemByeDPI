@@ -32,6 +32,9 @@ class _SignalBridge(QObject):
     speed_progress = pyqtSignal(float, float)
     speed_done = pyqtSignal(float, float)
     engine_done = pyqtSignal(bool)
+    update_found = pyqtSignal(str, str) # version_name, download_url
+    update_progress = pyqtSignal(int)
+
 
 
 # ---------------------------------------------------------------------------
@@ -78,8 +81,9 @@ def _make_icon(color: str = "", size: int = 64) -> QIcon:
 # Ana Pencere
 # ---------------------------------------------------------------------------
 class MainWindow(QMainWindow):
-    def __init__(self, start_minimized: bool = False):
+    def __init__(self, start_minimized: bool = False, app_version: str = "v1.0"):
         super().__init__()
+        self.app_version = app_version
         self.engine = Engine()
         self.speed_test = SpeedTest()
         self._bridge = _SignalBridge()
@@ -249,6 +253,14 @@ class MainWindow(QMainWindow):
         self.chk_autostart = QCheckBox("Bilgisayar açılışında başlat")
         opts.addWidget(self.chk_autostart)
         opts.addStretch()
+        
+        # Sürüm Bilgisi
+        self.lbl_version = QLabel(self.app_version)
+        self.lbl_version.setObjectName("statLabel")
+        self.lbl_version.setStyleSheet("color: #72767d; font-size: 11px;")
+        opts.addWidget(self.lbl_version)
+        
+        opts.addStretch()
         self.chk_tray = QCheckBox("Kapatınca arka planda çalış")
         self.chk_tray.setChecked(True)
         opts.addWidget(self.chk_tray)
@@ -305,11 +317,63 @@ class MainWindow(QMainWindow):
         self._bridge.speed_progress.connect(self._on_speed_progress)
         self._bridge.speed_done.connect(self._on_speed_done)
         self._bridge.engine_done.connect(self._on_engine_done)
+        
+        self._bridge.update_found.connect(self._on_update_found)
+        self._bridge.update_progress.connect(self._on_update_progress)
 
     def _start_timers(self):
         self._stats_timer = QTimer(self)
         self._stats_timer.timeout.connect(self._refresh_stats)
         self._stats_timer.start(1000)
+        
+        # Güncelleme kontrolünü pencere açıldıktan 2 saniye sonra başlat
+        QTimer.singleShot(2000, self._start_update_check)
+        
+    def _start_update_check(self):
+        import threading
+        from utils.updater import check_for_updates
+        def _check():
+            has_update, new_ver, dl_url = check_for_updates(self.app_version)
+            if has_update:
+                self._bridge.update_found.emit(new_ver, dl_url)
+        threading.Thread(target=_check, daemon=True).start()
+
+
+    # ======================================================================
+    # GÜNCELLEME EKRANI
+    # ======================================================================
+    def _on_update_found(self, new_ver: str, dl_url: str):
+        from PyQt6.QtWidgets import QMessageBox
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Güncelleme Mevcut!")
+        msg.setText(f"CemByeDPI'ın yeni sürümü ({new_ver}) bulundu.\n\nŞimdi otomatik olarak indirilip kurulsun mu?")
+        msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.Yes)
+        
+        if msg.exec() == QMessageBox.StandardButton.Yes:
+            self._start_update_download(dl_url, new_ver)
+
+    def _start_update_download(self, dl_url: str, new_ver: str):
+        from PyQt6.QtWidgets import QProgressDialog
+        import threading
+        from utils.updater import download_and_update
+        
+        self.update_dlg = QProgressDialog(f"{new_ver} İndiriliyor...", "İptal (Kapat)", 0, 100, self)
+        self.update_dlg.setWindowTitle("Güncelleme")
+        self.update_dlg.setWindowModality(Qt.WindowModality.WindowModal)
+        self.update_dlg.setCancelButton(None) # iptal edilemez
+        self.update_dlg.show()
+        
+        def _dl():
+            download_and_update(dl_url, progress_callback=self._bridge.update_progress.emit)
+        
+        threading.Thread(target=_dl, daemon=True).start()
+
+    def _on_update_progress(self, pct: int):
+        if hasattr(self, "update_dlg"):
+            self.update_dlg.setValue(pct)
+            if pct >= 100:
+                self.update_dlg.setLabelText("Kuruluyor... Lütfen Bekleyin.")
 
     # ======================================================================
     # EYLEMLER
@@ -417,10 +481,32 @@ class MainWindow(QMainWindow):
 
     def _quit(self):
         import time
+        import subprocess
+        import os
         self.engine.stop()
         self.tray.hide()
-        # Sistemin WinDivert.sys kernel sürücüsünü tamamen hafızadan atması
-        # ve dosya kilidini açması için kısa bir süre bekle. PyInstaller
-        # temp klasörünü silerken dosya hala kilitliyse hata veriyor.
-        time.sleep(1)
-        QApplication.instance().quit()
+        
+        # PyInstaller _MEI hatasının ana çözümü: WinDivert kernel sürücüsü, 
+        # program kapandıktan sonra bile arka planda Windows hizmeti (service) 
+        # olarak çalışmaya devam eder ve dosya kilidini bırakmaz.
+        try:
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0
+            
+            subprocess.run(["sc.exe", "stop", "WinDivert"], capture_output=True, startupinfo=startupinfo, creationflags=subprocess.CREATE_NO_WINDOW)
+            subprocess.run(["sc.exe", "delete", "WinDivert"], capture_output=True, startupinfo=startupinfo, creationflags=subprocess.CREATE_NO_WINDOW)
+        except Exception:
+            pass
+            
+        time.sleep(0.5)
+        
+        # Kesin Çözüm: PyInstaller'ın ctypes DLL'leri kilitliyken "Failed to remove" 
+        # hatası vermesini engellemek için, Bootloader'i (ana çalıştırıcıyı) arkadan vuruyoruz.
+        # Bootloader silme işlemini yapmaya yeltenemeden zorla (force) kapatılıyor.
+        try:
+            ppid = os.getppid()
+            subprocess.run(["taskkill", "/F", "/PID", str(ppid)], startupinfo=startupinfo, creationflags=subprocess.CREATE_NO_WINDOW)
+        except Exception:
+            pass
+        os._exit(0)

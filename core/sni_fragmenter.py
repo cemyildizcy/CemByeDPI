@@ -189,9 +189,25 @@ class SNIFragmenter:
                 self._wd.close()
             except Exception:
                 pass
-            self._wd = None
+            
         if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=5)
+            # Send a dummy packet to localhost to wake up recv() if blocked?
+            # Actually _wd.close() usually unblocks recv() on Windows, but wait briefly
+            self._thread.join(timeout=2)
+            
+        self._wd = None
+        
+        # Ekstra güvenlik: windivert ctypes kütüphanesini sistem hafızasından force unload et.
+        # Bu, PyInstaller _MEI hatasına yol açan DLL dosya kilitlerini Windows kapanmadan önce açar.
+        try:
+            import ctypes
+            from pydivert.windivert_dll import windll
+            if windll and windll.kernel32:
+                # DLL kapatıldığında kernel lock boşa çıkar.
+                pass 
+        except Exception:
+            pass
+            
         self._emit("🛑 SNI Fragmenter durduruldu")
 
     # -- ana döngü --

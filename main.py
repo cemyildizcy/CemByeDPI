@@ -15,6 +15,8 @@ import glob
 import shutil
 import atexit
 
+APP_VERSION = "v1.0"
+
 
 def _cleanup_old_mei():
     """PyInstaller --onefile modunun bıraktığı eski _MEI klasörlerini temizle."""
@@ -62,7 +64,7 @@ def main():
     app.setQuitOnLastWindowClosed(False)  # Tray'de çalışmaya devam et
 
     minimized = "--minimized" in sys.argv
-    window = MainWindow(start_minimized=minimized)
+    window = MainWindow(start_minimized=minimized, app_version=APP_VERSION)
 
     sys.exit(app.exec())
 

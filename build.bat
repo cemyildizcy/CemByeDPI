@@ -11,13 +11,17 @@ pyinstaller ^
     --onefile ^
     --windowed ^
     --name CemByeDPI ^
-    --manifest admin.manifest ^
+    --uac-admin ^
+    --icon icon.ico ^
     --collect-all pydivert ^
     --hidden-import pydivert ^
     --hidden-import pydivert.windivert ^
     --add-data "core;core" ^
     --add-data "gui;gui" ^
     --add-data "utils;utils" ^
+    --add-data "icon.ico;." ^
+    --clean ^
+    --noconfirm ^
     main.py
 
 echo.
