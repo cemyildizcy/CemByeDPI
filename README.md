@@ -137,5 +137,5 @@ Bu proje [MIT Lisansı](LICENSE) ile lisanslanmıştır.
 ---
 
 <p align="center">
-  <sub>Made with ❤️ by <a href="https://github.com/cagritaskn">cagritaskn</a></sub>
+  <sub>Made with ❤️ by Cem YILDIZ</sub>
 </p>
