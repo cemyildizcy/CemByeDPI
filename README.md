@@ -118,7 +118,23 @@ CemByeDPI/
 - ✅ **Veri toplamaz** — Hiçbir kişisel veri toplanmaz veya gönderilmez
 - ✅ **VPN değil** — Trafiğinizi şifrelemez veya yönlendirmez
 - ✅ **WinDivert** — Microsoft imzalı, açık kaynak paket işleme sürücüsü
-- ⚠️ Bazı antivirüsler WinDivert sürücüsünü false-positive olarak algılayabilir
+
+---
+
+## 🛡️ Anti-Virüs ve Windows Uyarıları Hakkında (ÖNEMLİ)
+
+CemByeDPI tamamen ücretsiz, bağış kabul etmeyen ve açık kaynaklı bağımsız bir projedir. Kodlarında hiçbir zararlı yazılım barındırmamasına rağmen, aşağıdaki uyarılarla karşılaşabilirsiniz. Lütfen okuyun:
+
+1. **Windows SmartScreen (Bilinmeyen Yayıncı) Uyarısı:**
+   - **Neden Çıkar?** Ticari yazılım şirketlerinin Microsoft'a her yıl ödediği binlerce dolarlık "Genişletilmiş Dijital Sertifika (EV Code Signing)" bu projede (ücretsiz olduğu için) bulunmamaktadır. Windows, sertifikası olmayan her yeni programı engeller.
+   - **Çözüm:** Mavi uyarı ekranı geldiğinde **"Daha fazla bilgi"** yazısına tıklayıp **"Yine de çalıştır"** butonuna basarak güvenle kullanabilirsiniz.
+
+2. **Açık Kaynak & Şeffaflık**
+   - Uygulamanın tüm mekanik ve bağlantı kodları GitHub üzerinde açıktır. İnternet trafiğinizi asla uzak bir sunucuya yönlendirmez. Kendi bilgisayarınızda ağ paketlerini yerel olarak düzenler. İnanmayan veya şüphe duyan herkes doğrudan Python kurup kaynak koddan çalıştırabilir.
+
+3. **VirusTotal Raporu**
+   - Dünyanın en büyük 70 farklı virüs programı tarafından taranmış ve onaylanmıştır. Program ağ ayarlarını değiştirdiği için (PyInstaller ve WinDivert kaynaklı) sadece 1-2 dandik antivirüs "False Positive" uyarı verebilir.
+   - **[Buraya tıklayarak güncel VirusTotal test sonucunu görebilirsiniz.](https://www.virustotal.com/)** *(Uygulamayı indirdikten sonra siz de kendi dosyanızı tarayabilirsiniz)*
 
 ## 🔧 Gereksinimler
 
