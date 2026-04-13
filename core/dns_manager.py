@@ -195,6 +195,16 @@ class DNSManager:
         self.original_dns: dict[str, list[str]] = {}
         self.active_adapter: str | None = None
         self.hosts_modified = False
+        self._on_log_cb = None
+
+    def on_log(self, cb):
+        self._on_log_cb = cb
+
+    def _emit(self, msg: str):
+        if self._on_log_cb:
+            self._on_log_cb(msg)
+        else:
+            logger.info(msg)
 
     def get_active_adapter(self) -> str | None:
         try:
