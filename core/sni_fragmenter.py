@@ -143,7 +143,7 @@ class SNIFragmenter:
 
     SPLIT_POS = 2       # TLS record'un 2. byte'ından böl
     FAKE_TTL = 1        # Sahte paket TTL'i (ilk hop'ta düşürülür)
-    FRAG_DELAY = 0.01   # Parçalar arası gecikme (10ms) - Discord hızlandırıldı.
+    FRAG_DELAY = 0.0    # Parçalar arası gecikme (0ms) - Turbo Mod (Nowait)
 
     def __init__(self):
         self.running = False
