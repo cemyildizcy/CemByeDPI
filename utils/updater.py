@@ -93,21 +93,47 @@ def download_and_update(download_url: str, progress_callback=None):
         bat_path = os.path.join(update_dir, "c_update.bat")
         
         bat_content = f"""@echo off
+setlocal enabledelayedexpansion
 echo.
 echo ==============================================
 echo   CemByeDPI Guncelleniyor Lutfen Bekleyin...
 echo ==============================================
 echo.
-:: Uygulamanin tam olarak kapanmasi icin 3 saniye bekle
-timeout /t 3 /nobreak >nul
-:: Eski exe dosyasinin uzerine yenisini yaz
-copy /Y "{temp_exe_path}" "{exe_path}"
-:: Temp exe'yi sil
-del "{temp_exe_path}"
-:: Yeni exe dosyasini baslat
+
+:: 1) Uygulamayi ve servisleri durdurdugumuzdan emin olalim
+taskkill /F /IM "CemByeDPI.exe" /T >nul 2>&1
+sc stop WinDivert >nul 2>&1
+sc delete WinDivert >nul 2>&1
+timeout /t 2 /nobreak >nul
+
+:: 2) Kopyalama islemi (Retry Logic)
+set "retry=0"
+:COPY_LOOP
+set /a "retry+=1"
+echo [Deneme !retry!] Dosya guncelleniyor...
+copy /Y "{temp_exe_path}" "{exe_path}" >nul 2>&1
+
+if !errorlevel! neq 0 (
+    if !retry! lss 5 (
+        echo [!] Dosya su an kilitli, 2 saniye bekleyip tekrar denenecek...
+        timeout /t 2 /nobreak >nul
+        goto COPY_LOOP
+    ) else (
+        echo [X] HATA: Dosya guncellenemedi! Lutfen programi kapatip manuel guncelleyin.
+        echo Gerekiyorsa Gorev Yoneticisinden CemByeDPI'i kapatin.
+        pause
+        exit /b 1
+    )
+)
+
+:: 3) Temizlik ve Baslatma
+echo [+] Guncelleme basariyla tamamlandi.
+del "{temp_exe_path}" >nul 2>&1
 start "" "{exe_path}"
-:: Kendini (Bu bat dosyasini) sil
-del "%~f0"
+echo [+] Uygulama yeniden baslatiliyor...
+
+:: Kendini sil ve cik
+(goto) 2>nul & del "%~f0"
 """
         with open(bat_path, "w", encoding="utf-8") as f:
             f.write(bat_content)
