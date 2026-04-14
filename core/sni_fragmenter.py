@@ -245,12 +245,7 @@ class SNIFragmenter:
                 
                 is_target = False
                 if domain:
-                    # Kırmızı Çizgi: Bu domainler Asla parçalanmamalı (Update / Ses bağlantıları vb.)
-                    excluded = ["updates.discord.com", "dl.discordapp.net", "router.discord.com", "latency.discord.media"]
-                    
-                    if domain in excluded:
-                        is_target = False
-                    elif not self.target_domains:
+                    if not self.target_domains:
                         # Eğer hiçbir domain seçilmediyse universal çalış.
                         is_target = True
                     else:
@@ -261,7 +256,10 @@ class SNIFragmenter:
 
                 if is_target:
                     self._emit(f"🎯 Hedef SNI: {domain}")
-                    self._fragment_early(pkt, domain)
+                    # Threading ile asenkron parçalama başlat:
+                    # Bu sayede `time.sleep` delay'leri ana WinDivert okuma döngüsünü tıkamaz
+                    # Çoklu eşzamanlı bağlantılar (Discord Updater gibi) bu sayede kopukluk yaşamaz.
+                    threading.Thread(target=self._fragment_early, args=(pkt, domain), daemon=True).start()
                     with self._lock:
                         self.packets_fragmented += 1
                 else:
