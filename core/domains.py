@@ -14,6 +14,7 @@ DOMAINS = {
         "images-ext-2.discordapp.net",
         "discordapp.com",
         "www.discordapp.com",
+        "dl.discordapp.net",
         "gateway.discord.gg",
         "discord.gg",
         "discordapp.net",
@@ -25,6 +26,9 @@ DOMAINS = {
         "media.discordapp.net",
         "images.discordapp.net",
         "cdn.discordapp.com",
+        "updates.discord.com",
+        "latency.discord.media",
+        "router.discord.com",
     ],
     "Roblox": [
         "roblox.com",
