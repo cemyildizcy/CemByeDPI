@@ -245,7 +245,12 @@ class SNIFragmenter:
                 
                 is_target = False
                 if domain:
-                    if not self.target_domains:
+                    # Kırmızı Çizgi: Bu domainler Asla parçalanmamalı (Update / Ses bağlantıları vb.)
+                    excluded = ["updates.discord.com", "dl.discordapp.net", "router.discord.com", "latency.discord.media"]
+                    
+                    if domain in excluded:
+                        is_target = False
+                    elif not self.target_domains:
                         # Eğer hiçbir domain seçilmediyse universal çalış.
                         is_target = True
                     else:
