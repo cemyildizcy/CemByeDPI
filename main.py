@@ -15,7 +15,7 @@ import glob
 import shutil
 import atexit
 
-APP_VERSION = "v1.2.2"
+APP_VERSION = "v1.2.3"
 
 
 def _cleanup_old_mei():

@@ -141,7 +141,7 @@ class SNIFragmenter:
       3) Kalan payload 50ms gecikmeyle (DPI reassembly'yi engeller)
     """
 
-    SPLIT_POS = 2       # TLS record'un 2. byte'ından böl
+    SPLIT_POS = 1       # TLS record'un 1. byte'ından (0x16) böl - En agresif mod.
     FAKE_TTL = 1        # Sahte paket TTL'i (ilk hop'ta düşürülür)
     FRAG_DELAY = 0.0    # Parçalar arası gecikme (0ms) - Turbo Mod (Nowait)
 
@@ -306,19 +306,9 @@ class SNIFragmenter:
             orig_seq = struct.unpack_from("!I", raw, tcp_off + 4)[0]
             hdr = bytes(raw[:pay_start])
 
-            # ── 1) İlk parça (2 byte: content_type + version_major) ──
-            # DPI bu kadar az veriyle SNI'yı parse edemez
-            f1 = bytearray(hdr) + bytearray(part1)
-            struct.pack_into("!H", f1, 2, len(f1))       # IP total length
-            f1[tcp_off + 13] &= ~0x08                     # PSH flag kaldır (push etme)
-            self._recalc_checksums(f1, ip_hlen, tcp_off)
-            self._wd.send(pydivert.Packet(bytes(f1), pkt.interface, pkt.direction))
-
-            # ── 2) Kısa gecikme (DPI'ın parçayı buffer'dan atması için) ──
-            time.sleep(self.FRAG_DELAY)  # 2ms — bağlantıyı bozmayacak kadar kısa
-
-            # ── 3) Kalan payload (ClientHello'nun geri kalanı + SNI) ──
-            # Sunucu f1 + f2'yi TCP katmanında birleştirip normal işler
+            # ── 1) İkinci parça (SNI içeren büyük parça) ──
+            # TERS PARÇALAMA (Reverse Fragmentation): 
+            # Önce SNI kısmını gönderiyoruz. DPI sırayla birleştirdiği için kuralı tetikleyemez.
             f2 = bytearray(hdr) + bytearray(part2)
             struct.pack_into("!H", f2, 2, len(f2))
             new_seq = (orig_seq + split) & 0xFFFFFFFF
@@ -326,9 +316,21 @@ class SNIFragmenter:
             self._recalc_checksums(f2, ip_hlen, tcp_off)
             self._wd.send(pydivert.Packet(bytes(f2), pkt.interface, pkt.direction))
 
+            # ── 2) Gecikme (Gerekirse) ──
+            if self.FRAG_DELAY > 0:
+                time.sleep(self.FRAG_DELAY)
+
+            # ── 3) Birinci parça (1 byte: 0x16 Handshake start) ──
+            # Sonradan gönderilen bu parça sunucu tarafında pencere içinde birleşir.
+            f1 = bytearray(hdr) + bytearray(part1)
+            struct.pack_into("!H", f1, 2, len(f1))       # IP total length
+            f1[tcp_off + 13] &= ~0x08                     # PSH flag kaldır
+            self._recalc_checksums(f1, ip_hlen, tcp_off)
+            self._wd.send(pydivert.Packet(bytes(f1), pkt.interface, pkt.direction))
+
             self._emit(
-                f"✂️ Bölme: {domain} "
-                f"({len(part1)}+{len(part2)} B, {int(self.FRAG_DELAY*1000)}ms)"
+                f"✂️ Ters Bölme: {domain} "
+                f"({len(part2)}+{len(part1)} B, REVERSE MODE)"
             )
 
         except Exception as e:
