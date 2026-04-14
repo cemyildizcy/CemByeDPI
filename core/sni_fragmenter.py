@@ -143,7 +143,7 @@ class SNIFragmenter:
 
     SPLIT_POS = 2       # TLS record'un 2. byte'ından böl
     FAKE_TTL = 1        # Sahte paket TTL'i (ilk hop'ta düşürülür)
-    FRAG_DELAY = 0.05   # Parçalar arası gecikme (50ms)
+    FRAG_DELAY = 0.01   # Parçalar arası gecikme (10ms) - Discord hızlandırıldı.
 
     def __init__(self):
         self.running = False
@@ -243,18 +243,8 @@ class SNIFragmenter:
                 # Hedef domain kontrolü
                 domain, _ = find_sni(payload)
                 
-                # Bu domainler DNS çözümü için listede gerekli ama asla parçalanmamalı.
-                # Parçalanırsa Discord Updater ve latency bağlantıları bozuluyor.
-                NEVER_FRAGMENT = {
-                    "updates.discord.com",
-                    "dl.discordapp.net",
-                    "latency.discord.media",
-                    "router.discord.com",
-                    "discordapp.net",
-                }
-
                 is_target = False
-                if domain and domain not in NEVER_FRAGMENT:
+                if domain:
                     if not self.target_domains:
                         # Eğer hiçbir domain seçilmediyse universal çalış.
                         is_target = True
@@ -285,14 +275,18 @@ class SNIFragmenter:
                     pass
                 self._wd = None
 
-    # -- yeni strateji: erken bölme --
+    # -- parçalama motoru: saf TCP bölme (fake RST YOK) --
     def _fragment_early(self, pkt, domain: str):
         """
-        GoodbyeDPI tarzı erken bölme stratejisi:
-        1) İlk 2 byte gönder (0x16, 0x03) → DPI sadece 'TLS başlangıcı' görür
-        2) Sahte RST gönder (TTL=1) → DPI bağlantıyı 'kapanmış' sanır
-        3) 50ms bekle → DPI reassembly timeout
-        4) Kalan veriyi gönder → DPI artık izlemiyor
+        Saf TCP segment bölme stratejisi (GoodbyeDPI Simple Mode):
+        1) ClientHello'yı position 2'den iki parçaya böl
+        2) Parça 1'i gönder (DPI sadece 2 byte TLS başlangıcı görür, SNI'yı parse edemez)
+        3) 2ms bekle (DPI buffer süresi geçsin)
+        4) Parça 2'yi gönder (gerisi geliyor, sunucu birleştirir)
+
+        NOT: Sahte RST kullanmıyoruz çünkü Windows TCP stack'i outbound RST'yi
+        kendi bağlantısına da uygulayabilir ve bağlantıyı koparabilir.
+        Saf bölme daha güvenilir ve aynı derecede etkilidir.
         """
         try:
             raw = bytearray(pkt.raw)
@@ -312,20 +306,19 @@ class SNIFragmenter:
             orig_seq = struct.unpack_from("!I", raw, tcp_off + 4)[0]
             hdr = bytes(raw[:pay_start])
 
-            # ── 1) Mini fragment (2 byte: content_type + version_major) ──
+            # ── 1) İlk parça (2 byte: content_type + version_major) ──
+            # DPI bu kadar az veriyle SNI'yı parse edemez
             f1 = bytearray(hdr) + bytearray(part1)
             struct.pack_into("!H", f1, 2, len(f1))       # IP total length
-            f1[tcp_off + 13] &= ~0x08                     # PSH flag kaldır
+            f1[tcp_off + 13] &= ~0x08                     # PSH flag kaldır (push etme)
             self._recalc_checksums(f1, ip_hlen, tcp_off)
             self._wd.send(pydivert.Packet(bytes(f1), pkt.interface, pkt.direction))
 
-            # ── 2) Sahte RST paketi (TTL=1 → router düşürür, DPI görür) ──
-            self._send_fake_rst(hdr, orig_seq + split, pkt, ip_hlen, tcp_off)
+            # ── 2) Kısa gecikme (DPI'ın parçayı buffer'dan atması için) ──
+            time.sleep(self.FRAG_DELAY)  # 2ms — bağlantıyı bozmayacak kadar kısa
 
-            # ── 3) Gecikme (DPI reassembly buffer timeout) ──
-            time.sleep(self.FRAG_DELAY)
-
-            # ── 4) Kalan payload (tam ClientHello SNI dahil) ──
+            # ── 3) Kalan payload (ClientHello'nun geri kalanı + SNI) ──
+            # Sunucu f1 + f2'yi TCP katmanında birleştirip normal işler
             f2 = bytearray(hdr) + bytearray(part2)
             struct.pack_into("!H", f2, 2, len(f2))
             new_seq = (orig_seq + split) & 0xFFFFFFFF
@@ -334,8 +327,8 @@ class SNIFragmenter:
             self._wd.send(pydivert.Packet(bytes(f2), pkt.interface, pkt.direction))
 
             self._emit(
-                f"✂️ Erken bölme: {domain} "
-                f"({len(part1)}+{len(part2)} B, fake RST, {int(self.FRAG_DELAY*1000)}ms)"
+                f"✂️ Bölme: {domain} "
+                f"({len(part1)}+{len(part2)} B, {int(self.FRAG_DELAY*1000)}ms)"
             )
 
         except Exception as e:
@@ -344,24 +337,6 @@ class SNIFragmenter:
                 self._wd.send(pkt)
             except Exception:
                 pass
-
-    def _send_fake_rst(self, hdr_tmpl: bytes, seq: int, pkt, ip_hlen: int, tcp_off: int):
-        """
-        Sahte RST paketi gönder.
-        TTL=1 olduğu için ilk router tarafından düşürülür → sunucuya ulaşmaz.
-        Ama DPI bunu görür ve bağlantı state'ini siler → sonraki parçayı incelemez.
-        """
-        try:
-            fake_payload = b"\x00" * 8  # boş veri
-            f = bytearray(hdr_tmpl) + bytearray(fake_payload)
-            struct.pack_into("!H", f, 2, len(f))           # IP total length
-            f[8] = self.FAKE_TTL                            # TTL = 1
-            struct.pack_into("!I", f, tcp_off + 4, seq & 0xFFFFFFFF)  # seq
-            f[tcp_off + 13] = 0x04                          # RST flag
-            self._recalc_checksums(f, ip_hlen, tcp_off)
-            self._wd.send(pydivert.Packet(bytes(f), pkt.interface, pkt.direction))
-        except Exception:
-            pass  # sahte paket gönderemezse devam et
 
     def _recalc_checksums(self, pkt: bytearray, ip_hlen: int, tcp_off: int):
         """IP ve TCP checksum'larını yeniden hesapla."""
@@ -372,3 +347,4 @@ class SNIFragmenter:
         struct.pack_into("!H", pkt, 10, ip_cs)
         tcp_cs = _tcp_checksum(pkt[:ip_hlen], pkt[ip_hlen:])
         struct.pack_into("!H", pkt, tcp_off + 16, tcp_cs)
+
