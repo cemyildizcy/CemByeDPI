@@ -105,7 +105,6 @@ class MainWindow(QMainWindow):
     # UI KURULUMU
     # ======================================================================
     def _setup_ui(self):
-    def _setup_ui(self):
         self.setWindowTitle("CemByeDPI — Discord Erişim Aracı")
         self.setFixedSize(450, 760)
         self.setWindowIcon(_make_icon(ACCENT))
