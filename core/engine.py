@@ -76,7 +76,7 @@ class Engine:
             self._emit("⚠️ DNS ayarlanamadı, yine de devam ediliyor...")
 
         # 2. SNI Fragmenter
-        if not self.fragmenter.start():
+        if not self.fragmenter.start(target_domains=target_domains):
             self._emit("❌ SNI Fragmenter başlatılamadı!")
             self.dns.restore_dns()
             return False

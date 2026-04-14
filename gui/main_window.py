@@ -105,8 +105,9 @@ class MainWindow(QMainWindow):
     # UI KURULUMU
     # ======================================================================
     def _setup_ui(self):
+    def _setup_ui(self):
         self.setWindowTitle("CemByeDPI — Discord Erişim Aracı")
-        self.setFixedSize(440, 920)
+        self.setFixedSize(450, 760)
         self.setWindowIcon(_make_icon(ACCENT))
 
         central = QWidget()
@@ -115,8 +116,8 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(STYLESHEET)
 
         root = QVBoxLayout(central)
-        root.setContentsMargins(20, 16, 20, 16)
-        root.setSpacing(12)
+        root.setContentsMargins(16, 10, 16, 10)
+        root.setSpacing(8)
 
         # -- Başlık --
         title = QLabel("🛡️ CemByeDPI")
@@ -128,8 +129,6 @@ class MainWindow(QMainWindow):
         sub.setObjectName("subtitleLabel")
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(sub)
-
-        root.addSpacing(4)
 
         # -- Power Button --
         pwr_row = QHBoxLayout()
@@ -144,56 +143,65 @@ class MainWindow(QMainWindow):
         # -- Durum --
         self.lbl_status = QLabel("● Bağlı Değil")
         self.lbl_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_status.setFixedHeight(32)
+        self.lbl_status.setFixedHeight(28)
         self.lbl_status.setStyleSheet(
             f"color: {TEXT_DIM}; background: #1a1b30; border-radius: 8px; font-weight: 600;"
         )
         root.addWidget(self.lbl_status)
 
-        # -- DNS Seçimi --
+        # -- Ayarlar (DNS + Platformlar yanyana) --
+        settings_row = QHBoxLayout()
+        
+        # DNS Seçimi
         dns_card = self._card()
         dns_lay = QVBoxLayout(dns_card)
-        dns_lay.setSpacing(6)
+        dns_lay.setContentsMargins(8, 8, 8, 8)
+        dns_lay.setSpacing(4)
         dns_title = QLabel("🌐 DNS Sunucusu")
         dns_title.setObjectName("sectionTitle")
         dns_lay.addWidget(dns_title)
         self.cmb_dns = QComboBox()
         for name in DNS_SERVERS:
             primary, secondary = DNS_SERVERS[name]
-            self.cmb_dns.addItem(f"{name}  ({primary})", name)
+            self.cmb_dns.addItem(f"{name}", name)
         dns_lay.addWidget(self.cmb_dns)
-        root.addWidget(dns_card)
+        settings_row.addWidget(dns_card)
         
-        # -- Platformlar --
+        # Platformlar
         from core.domains import DOMAINS
         plat_card = self._card()
         plat_lay = QVBoxLayout(plat_card)
-        plat_lay.setSpacing(6)
+        plat_lay.setContentsMargins(8, 8, 8, 8)
+        plat_lay.setSpacing(4)
         plat_title = QLabel("🎯 Hedef Platformlar")
         plat_title.setObjectName("sectionTitle")
         plat_lay.addWidget(plat_title)
         
-        # Checkboxes
         self.plat_boxes = {}
+        boxes_lay = QHBoxLayout()
         for p_name in DOMAINS.keys():
             cb = QCheckBox(p_name)
             if p_name == "Discord":
                 cb.setChecked(True)
             self.plat_boxes[p_name] = cb
-            plat_lay.addWidget(cb)
-            
+            boxes_lay.addWidget(cb)
+        plat_lay.addLayout(boxes_lay)
+        
         self.txt_custom = QLineEdit()
         self.txt_custom.setPlaceholderText("Özel Domain (Örn: pastebin.com)")
         self.txt_custom.setStyleSheet(
             "background: #202225; color: #dcddde; border: 1px solid #4f545c; padding: 4px; border-radius: 4px;"
         )
         plat_lay.addWidget(self.txt_custom)
-        root.addWidget(plat_card)
+        settings_row.addWidget(plat_card)
+        
+        root.addLayout(settings_row)
 
         # -- Hız Testi --
         speed_card = self._card()
         speed_lay = QVBoxLayout(speed_card)
-        speed_lay.setSpacing(8)
+        speed_lay.setContentsMargins(8, 8, 8, 8)
+        speed_lay.setSpacing(4)
 
         speed_header = QHBoxLayout()
         st = QLabel("⚡ Hız Testi")
@@ -207,11 +215,10 @@ class MainWindow(QMainWindow):
 
         self.speed_bar = QProgressBar()
         self.speed_bar.setValue(0)
-        self.speed_bar.setFixedHeight(10)
+        self.speed_bar.setFixedHeight(8)
         speed_lay.addWidget(self.speed_bar)
 
         results_row = QHBoxLayout()
-        # Download
         dl_box = QVBoxLayout()
         self.lbl_speed = QLabel("—")
         self.lbl_speed.setObjectName("speedResult")
@@ -222,7 +229,6 @@ class MainWindow(QMainWindow):
         dl_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         dl_box.addWidget(dl_lbl)
         results_row.addLayout(dl_box)
-        # Ping
         ping_box = QVBoxLayout()
         self.lbl_ping = QLabel("—")
         self.lbl_ping.setObjectName("pingResult")
@@ -239,7 +245,8 @@ class MainWindow(QMainWindow):
         # -- İstatistikler --
         stat_card = self._card()
         stat_grid = QGridLayout(stat_card)
-        stat_grid.setSpacing(6)
+        stat_grid.setContentsMargins(8, 8, 8, 8)
+        stat_grid.setSpacing(4)
 
         st2 = QLabel("📊 İstatistikler")
         st2.setObjectName("sectionTitle")
@@ -260,7 +267,7 @@ class MainWindow(QMainWindow):
         self.lbl_uptime.setAlignment(Qt.AlignmentFlag.AlignCenter)
         stat_grid.addWidget(self.lbl_uptime, 1, 2)
 
-        for col, txt in enumerate(["İşlenen Paket", "Parçalanan", "Çalışma Süresi"]):
+        for col, txt in enumerate(["İşlenen", "Parçalanan", "Süre"]):
             l = QLabel(txt)
             l.setObjectName("statLabel")
             l.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -272,7 +279,7 @@ class MainWindow(QMainWindow):
         self.log_box = QTextEdit()
         self.log_box.setObjectName("logBox")
         self.log_box.setReadOnly(True)
-        self.log_box.setFixedHeight(110)
+        self.log_box.setFixedHeight(80)
         self.log_box.setPlaceholderText("Log mesajları burada gösterilecek...")
         root.addWidget(self.log_box)
 

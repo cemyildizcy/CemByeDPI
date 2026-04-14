@@ -166,12 +166,14 @@ class SNIFragmenter:
                 pass
 
     # -- lifecycle --
-    def start(self) -> bool:
+    def start(self, target_domains: list[str] = None) -> bool:
         if not PYDIVERT_AVAILABLE:
             self._emit("❌ pydivert kütüphanesi bulunamadı!")
             return False
         if self.running:
             return True
+
+        self.target_domains = target_domains if target_domains else []
 
         self.running = True
         self.packets_processed = 0
@@ -238,10 +240,22 @@ class SNIFragmenter:
                     self._wd.send(pkt)
                     continue
 
-                # Discord domain kontrolü
+                # Hedef domain kontrolü
                 domain, _ = find_sni(payload)
-                if domain and is_discord_domain(domain):
-                    self._emit(f"🎯 Discord SNI: {domain}")
+                
+                is_target = False
+                if domain:
+                    if not self.target_domains:
+                        # Eğer hiçbir domain seçilmediyse universal çalış.
+                        is_target = True
+                    else:
+                        for d in self.target_domains:
+                            if domain == d or domain.endswith("." + d):
+                                is_target = True
+                                break
+
+                if is_target:
+                    self._emit(f"🎯 Hedef SNI: {domain}")
                     self._fragment_early(pkt, domain)
                     with self._lock:
                         self.packets_fragmented += 1
